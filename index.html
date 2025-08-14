@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alsadar FPL League</title>
+<style>
+    body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
+    h1, h2 { text-align: center; }
+    table { width: 100%; border-collapse: collapse; margin: 20px 0; background: #fff; }
+    th, td { padding: 10px; border: 1px solid #ddd; text-align: center; }
+    th { background: #007bff; color: white; }
+    .loading { text-align: center; font-style: italic; }
+</style>
+</head>
+<body>
+<h1>Alsadar FPL League Standings</h1>
+<table id="standings">
+    <thead>
+        <tr>
+            <th>Rank</th>
+            <th>Player</th>
+            <th>Total Points</th>
+            <th>Last Rank</th>
+            <th>Change</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr><td colspan="5" class="loading">Loading...</td></tr>
+    </tbody>
+</table>
+
+<h2>Points Per Gameweek</h2>
+<table id="gameweeks">
+    <thead id="gw-header">
+        <tr><th>Player</th></tr>
+    </thead>
+    <tbody id="gw-body">
+        <tr><td colspan="20" class="loading">Loading...</td></tr>
+    </tbody>
+</table>
+
+<h2>Transfers (In/Out)</h2>
+<table id="transfers">
+    <thead>
+        <tr>
+            <th>Player</th>
+            <th>Transfers In</th>
+            <th>Transfers Out</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr><td colspan="3" class="loading">Loading...</td></tr>
+    </tbody>
+</table>
+
+<script>
+const leagueId = 642616;
+async function fetchLeague() {
+    try {
+        const url = `https://fantasy.premierleague.com/api/leagues-classic/${leagueId}/standings/`;
+        const res = await fetch(url);
+        const data = await res.json();
+        const standings = data.standings.results;
+
+        // جدول الترتيب
+        const tbody = document.querySelector("#standings tbody");
+        tbody.innerHTML = "";
+        standings.forEach(p => {
+            const rankChange = p.rank - p.last_rank;
+            tbody.innerHTML += `<tr>
+                <td>${p.rank}</td>
+                <td>${p.player_name}</td>
+                <td>${p.total}</td>
+                <td>${p.last_rank}</td>
+                <td>${rankChange>0? "+"+rankChange: rankChange}</td>
+            </tr>`;
+        });
+
+        // جدول النقاط لكل جولة
+        const gwHeader = document.querySelector("#gw-header tr");
+        const gwBody = document.querySelector("#gw-body");
+        gwHeader.innerHTML = "<th>Player</th>";
+        gwBody.innerHTML = "";
+
+        const maxGw = Math.max(...standings.map(p => p.event_total.length));
+        for(let i=1;i<=maxGw;i++) gwHeader.innerHTML += `<th>GW${i}</th>`;
+
+        standings.forEach(p => {
+            let row = `<tr><td>${p.player_name}</td>`;
+            for(let i=0;i<maxGw;i++){
+                row += `<td>${p.event_total[i] || 0}</td>`;
+            }
+            row += "</tr>";
+            gwBody.innerHTML += row;
+        });
+
+        // جدول الانتقالات لكل لاعب (in/out)
+        const transfersTbody = document.querySelector("#transfers tbody");
+        transfersTbody.innerHTML = "";
+        for(let p of standings){
+            const playerUrl = `https://fantasy.premierleague.com/api/entry/${p.entry}/event/1/picks/`;
+            // نجيب أول جولة كم مثال، لاحقًا ممكن تضيف كل الجولات
+            const pickRes = await fetch(playerUrl);
+            const pickData = await pickRes.json();
+            const transfersIn = pickData.picks.filter(pick=>pick.event_points>0).map(a=>a.element).join(", ");
+            const transfersOut = "N/A"; // FPL API لا يعطي Sold بشكل مباشر هنا
+            transfersTbody.innerHTML += `<tr>
+                <td>${p.player_name}</td>
+                <td>${transfersIn}</td>
+                <td>${transfersOut}</td>
+            </tr>`;
+        }
+
+    } catch(e){
+        console.error(e);
+        document.querySelectorAll(".loading").forEach(el=>el.textContent="Failed to load data");
+    }
+}
+
+fetchLeague();
+</script>
+</body>
+</html>
